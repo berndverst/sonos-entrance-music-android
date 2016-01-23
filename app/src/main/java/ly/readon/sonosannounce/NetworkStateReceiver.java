@@ -6,9 +6,7 @@ import android.content.Intent;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
-import android.util.Log;
 
-import net.frotz.sonos.Discover;
 import net.frotz.sonos.Sonos;
 
 import java.util.concurrent.locks.Lock;
