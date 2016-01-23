@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
+import android.os.AsyncTask;
 import android.util.Log;
 
 import net.frotz.sonos.Discover;
@@ -23,6 +24,10 @@ public class NetworkStateReceiver extends BroadcastReceiver {
     private static final String LAST_TIME_MILLIS = "lastTimeMillis";
 
     private static ReadWriteLock lock = new ReentrantReadWriteLock();
+    private Lock readLock;
+    private Lock writeLock;
+
+    private Context ctx;
 
     public NetworkStateReceiver() {
         super();
@@ -32,20 +37,18 @@ public class NetworkStateReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         final String action = intent.getAction();
 
-        Lock readLock = lock.readLock();
-        Lock writeLock = lock.writeLock();
+        ctx = context;
+        readLock = lock.readLock();
+        writeLock = lock.writeLock();
 
         if(action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
             NetworkInfo info = intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
             boolean connected = info.isConnected();
 
-            Log.i(TAG, "Connection status: " + connected);
-
             if (connected) {
-
                 readLock.lock();
-                boolean isProcessing = Storage.getBoolean(context, IS_PROCESSING);
-                long lastTimeMillis = Storage.getLong(context, LAST_TIME_MILLIS);
+                boolean isProcessing = Storage.getBoolean(ctx, IS_PROCESSING);
+                long lastTimeMillis = Storage.getLong(ctx, LAST_TIME_MILLIS);
                 readLock.unlock();
 
                 boolean shouldAlert = true;
@@ -54,24 +57,44 @@ public class NetworkStateReceiver extends BroadcastReceiver {
                 }
 
                 if (!isProcessing && shouldAlert && writeLock.tryLock()) {
-                    Storage.putBoolean(context, IS_PROCESSING, true);
 
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {}
+                    new AsyncTask<Void, Void, Void>() {
 
-                    Discover sonosDiscovery = new Discover();
-                    String[] speakers = sonosDiscovery.getList();
+                        @Override
+                        protected Void doInBackground(Void... params) {
+                            Storage.putBoolean(ctx, IS_PROCESSING, true);
 
-                    if (speakers.length != 0)
-                    {
-                        Sonos speaker = new Sonos(speakers[0]);
-                        speaker.setTransportURI("x-rincon-mp3radio://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
-                        speaker.play();
-                        Storage.putLong(context, LAST_TIME_MILLIS, System.currentTimeMillis());
-                    }
-                    Storage.putBoolean(context, IS_PROCESSING, false);
-                    writeLock.unlock();
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException e) {}
+
+                            try {
+                                // TODO(berndverst): Troubleshoot Sonos Speaker Discovery
+                                // Returns: Null pointer exception during instruction 'monitor-enter v6'
+                                // Discover sonosDiscovery = new Discover();
+                                // String[] speakers = sonosDiscovery.getList();
+                                String[] speakers = new String[1];
+                                speakers[0] = "10.0.1.3";
+
+                                if (speakers.length != 0) {
+                                    Sonos speaker = new Sonos(speakers[0]);
+                                    speaker.setTransportURI("x-rincon-mp3radio://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
+                                    speaker.play();
+                                    Storage.putLong(ctx, LAST_TIME_MILLIS, System.currentTimeMillis());
+                                }
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            };
+                            return null;
+                        }
+
+                        @Override
+                        protected void onPostExecute(Void aVoid) {
+                            Storage.putBoolean(ctx, IS_PROCESSING, false);
+                            writeLock.unlock();
+                            return;
+                        }
+                    }.execute();
                 }
             }
         }
