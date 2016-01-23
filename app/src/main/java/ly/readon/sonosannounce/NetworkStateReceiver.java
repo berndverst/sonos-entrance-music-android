@@ -48,7 +48,10 @@ public class NetworkStateReceiver extends BroadcastReceiver {
                 long lastTimeMillis = Storage.getLong(context, LAST_TIME_MILLIS);
                 readLock.unlock();
 
-                boolean shouldAlert = System.currentTimeMillis() - lastTimeMillis > 9 * 3600000 ? true : false;
+                boolean shouldAlert = true;
+                if (lastTimeMillis != 0L) {
+                    shouldAlert = System.currentTimeMillis() - lastTimeMillis > 9 * 3600000 ? true : false;
+                }
 
                 if (!isProcessing && shouldAlert && writeLock.tryLock()) {
                     Storage.putBoolean(context, IS_PROCESSING, true);
