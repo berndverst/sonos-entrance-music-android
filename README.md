@@ -7,5 +7,8 @@ We suspend the current SONOS queue and directly play the MP3 URL to your soundtr
 Work In Progress:
 * Still figuring out the simple service discovery protocol usage to detect SONOS speakers.
 
+Nice to have:
+* Use Android device as audio stream server to provide local URL for playback.
+
 Related:
 * [Android SSDP Library](../../../android-ssdp)
